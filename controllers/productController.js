@@ -1,89 +1,66 @@
-const Product = require('../models/productModel')
-const asyncHandler = require('express-async-handler')
+const pool = require('../config/db');
+const asyncHandler = require('express-async-handler');
 
-//get product 
-const getProducts = asyncHandler(async(req, res) => {
-    try {
-        const products = await Product.find({});
-        res.status(200).json(products);
-    } catch (error) {
-        res.status(500);
-        throw new Error(error.message);
-        res.status(500).json({message: error.message})
-    }
-})
+// Get all products
+const getProducts = asyncHandler(async (req, res) => {
+  const [rows] = await pool.query('SELECT * FROM Products');
+  res.status(200).json(rows);
+});
 
-//get product by Id
-const getProductsById = asyncHandler(async(req, res) =>{
-    try {
-        const {id} = req.params;
-        const product = await Product.findById(id);
-        res.status(200).json(product);
-    } catch (error) {
-        res.status(500); //this doesnt work inside async  to solve this we need express async hanlder to remove this problem
-        throw new Error(error.message);  //this doesnt work inside async    
-        //res.status(500).json({message: error.message})
-    }
-})
+// Get product by ID
+const getProductsById = asyncHandler(async (req, res) => {
+  const [rows] = await pool.query('SELECT * FROM Products WHERE id = ?', [req.params.id]);
+  if (rows.length === 0) throw new Error("Product not found");
+  res.status(200).json(rows[0]);
+});
 
-//create product
-const createProducts = asyncHandler(async(req, res) => {
-    try {
-        const product = await Product.create(req.body)
-        res.status(200).json(product);
-        
-    } catch (error) {
-        res.status(500);
-        throw new Error(error.message);
-        //console.log(error.message);
-        //res.status(500).json({message: error.message})
-    }
-})
+// Get product by Name
+const getProductsByName = asyncHandler(async (req, res) => {
+    const [rows] = await pool.query('SELECT * FROM Products WHERE name = ?', [req.params.name]);
+    if (rows.length === 0) throw new Error("Product not found");
+    res.status(200).json(rows[0]);
+  });
 
+// Create a new product
+const createProducts = asyncHandler(async (req, res) => {
+  const { name, quantity, price, image } = req.body;
+  const [result] = await pool.query(
+    'INSERT INTO Products (name, quantity, price, image, createdAt, updatedAt) VALUES (?, ?, ?, ?, NOW(), NOW())',
+    [name, quantity, price, image]
+  );
+  const [newProduct] = await pool.query('SELECT * FROM Products WHERE id = ?', [result.insertId]);
+  res.status(201).json(newProduct[0]);
+});
 
-//update product
-const updateProducts = asyncHandler(async(req, res) => {
-    try {
-        const {id} = req.params;
-        const product = await Product.findByIdAndUpdate(id, req.body);
-        // we cannot find any product in database
-        if(!product){
-            return res.status(404).json({message: `cannot find any product with ID ${id}`})
-        }
-        const updatedProduct = await Product.findById(id);
-        res.status(200).json(updatedProduct);
-        
-    } catch (error) {
-        res.status(500);
-        throw new Error(error.message);
-        //res.status(500).json({message: error.message})
-    }
-})
+// Update a product
+const updateProducts = asyncHandler(async (req, res) => {
+  const { name, quantity, price, image } = req.body;
+  const id = req.params.id;
 
+  const [result] = await pool.query(
+    'UPDATE Products SET name = ?, quantity = ?, price = ?, image = ?, updatedAt = NOW() WHERE id = ?',
+    [name, quantity, price, image, id]
+  );
 
-//delete product
-const deleteProducts = asyncHandler(async(req, res) =>{
-    try {
-        const {id} = req.params;
-        const product = await Product.findByIdAndDelete(id);
-        if(!product){
-            return res.status(404).json({message: `cannot find any product with ID ${id}`})
-        }
-        res.status(200).json(product);
-        
-    } catch (error) {
-        res.status(500);
-        throw new Error(error.message);
-        //res.status(500).json({message: error.message})
-    }
-})
+  if (result.affectedRows === 0) throw new Error("Product not found");
 
+  const [updatedProduct] = await pool.query('SELECT * FROM Products WHERE id = ?', [id]);
+  res.status(200).json(updatedProduct[0]);
+});
+
+// Delete a product
+const deleteProducts = asyncHandler(async (req, res) => {
+  const id = req.params.id;
+  const [result] = await pool.query('DELETE FROM Products WHERE id = ?', [id]);
+  if (result.affectedRows === 0) throw new Error("Product not found");
+  res.status(200).json({ message: 'Deleted successfully' });
+});
 
 module.exports = {
-    
-    getProducts,
-    getProductsById,
-    createProducts,
-    updateProducts,
-    deleteProducts
-}
+  getProducts,
+  getProductsById,
+  getProductsByName,
+  createProducts,
+  updateProducts,
+  deleteProducts
+};
